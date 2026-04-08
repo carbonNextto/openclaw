@@ -20,10 +20,6 @@ ARG OPENCLAW_NODE_BOOKWORM_DIGEST="sha256:3a09aa6354567619221ef6c45a5051b671f953
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="node:24-bookworm-slim@sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
 
-# Railway injects RAILWAY_CACHE_ID at build time so cache mounts are
-# prefixed correctly. The empty-string default keeps local builds working.
-ARG RAILWAY_CACHE_ID=""
-
 # Base images are pinned to SHA256 digests for reproducible builds.
 # Trade-off: digests must be updated manually when upstream tags move.
 # To update, run: docker buildx imagetools inspect node:24-bookworm (or podman)
@@ -70,9 +66,7 @@ COPY --from=ext-deps /out/ ./extensions/
 
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
-ARG RAILWAY_CACHE_ID=""
-RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-pnpm,target=/root/.local/share/pnpm/store,sharing=locked \
-    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile
+RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile
 
 COPY . .
 
@@ -120,7 +114,6 @@ LABEL org.opencontainers.image.base.name="docker.io/library/node:24-bookworm-sli
 FROM base-${OPENCLAW_VARIANT}
 ARG OPENCLAW_VARIANT
 ARG OPENCLAW_DOCKER_APT_UPGRADE
-ARG RAILWAY_CACHE_ID=""
 
 # OCI base-image metadata for downstream image consumers.
 # If you change these annotations, also update:
@@ -139,9 +132,7 @@ WORKDIR /app
 # On the full bookworm image these are already installed (apt-get is a no-op).
 # Smoke workflows can opt out of distro upgrades to cut repeated CI time while
 # keeping the default runtime image behavior unchanged.
-RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-lists,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
+RUN apt-get update && \
     if [ "${OPENCLAW_DOCKER_APT_UPGRADE}" != "0" ]; then \
       DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends; \
     fi && \
@@ -182,9 +173,7 @@ RUN install -d -m 0755 "$COREPACK_HOME" && \
 # Install additional system packages needed by your skills or extensions.
 # Example: docker build --build-arg OPENCLAW_DOCKER_APT_PACKAGES="python3 wget" .
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
-RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-lists,target=/var/lib/apt,sharing=locked \
-    if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
+RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
     fi
@@ -194,9 +183,7 @@ RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-cache,target=/var/cache/apt,sh
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 # Must run after node_modules COPY so playwright-core is available.
 ARG OPENCLAW_INSTALL_BROWSER=""
-RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-lists,target=/var/lib/apt,sharing=locked \
-    if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
+RUN if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
       mkdir -p /home/node/.cache/ms-playwright && \
@@ -211,9 +198,7 @@ RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-cache,target=/var/cache/apt,sh
 # Required for agents.defaults.sandbox to function in Docker deployments.
 ARG OPENCLAW_INSTALL_DOCKER_CLI=""
 ARG OPENCLAW_DOCKER_GPG_FINGERPRINT="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
-RUN --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=${RAILWAY_CACHE_ID}-apt-lists,target=/var/lib/apt,sharing=locked \
-    if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
+RUN if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates curl gnupg && \
