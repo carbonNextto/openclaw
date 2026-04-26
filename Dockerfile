@@ -226,6 +226,12 @@ RUN if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
  && chmod 755 /app/openclaw.mjs
 
+# Create OpenClaw data directory with proper permissions for non-root user
+# This fixes EACCES errors on Railway and other restricted container platforms
+RUN mkdir -p /data/.openclaw && \
+    chown -R node:node /data/.openclaw && \
+    chmod 755 /data/.openclaw
+
 ENV NODE_ENV=production
 
 # Security hardening: Run as non-root user
